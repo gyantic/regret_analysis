@@ -1,5 +1,5 @@
 from openai import OpenAI
-from dilemma import *
+from winwin import *
 import numpy as np
 import pandas as pd, os, json
 import matplotlib.pyplot as plt
@@ -190,12 +190,13 @@ def play_round_llm(
 
 
     # L (Lipschitz定数) の計算
-    L_safe = max(abs(R - S), abs(T - P)) # Q値のグローバルなLipschitz定数 (安全側)
+    #L_safe = max(abs(R - S), abs(T - P)) # Q値のグローバルなLipschitz定数 (安全側)
     # L_tight = abs(Q_true[1] - Q_true[0]) # ローカルQ値の差 (タイトだが、安全性が保証されない可能性がある)
 
     # ★ 修正: L_eff の計算は、常に最も安全なグローバル定数L_safeを使用する
     # use_range_L が True/False にかかわらず、カバレッジを保証するためL_safeを使う
-    L_eff = L_safe 
+    #L_eff = L_safe 
+    L_eff = max(R, S, T, P) - min(R, S, T, P)
     # L_eff = L_tight if use_range_L else L_safe # (この行を削除またはコメントアウト)
     C  = 0.5 * beta_f
 
@@ -556,8 +557,8 @@ def make_pd_env(seed, tremble):
     # ここはあなたの GeneralSum 環境に合わせて置き換えてください
     # 例: GeneralSumGameEnv(payoff_x, payoff_y, p_opponent, tremble, seed, env_id)
     return GeneralSumGameENV(
-        payoff_x=payoff_dilemma_x,
-        payoff_y=payoff_dilemma_y,
+        payoff_x=payoff_winwin_x,
+        payoff_y=payoff_winwin_y,
         alpha_y=2.0,       # ベータ分布のパラメータ
         beta_y=2.0,        # ベータ分布のパラメータ
         p_y1_mean=p_y1_mean_for_env, # ベータ分布の平均確率を設定
@@ -570,7 +571,7 @@ client = OpenAI(api_key=os.getenv("GEMINI_API_KEY"), base_url="https://generativ
 print("実験 1/3 (ベースライン) を実行中...")
 out_none = run_sweep_llm(
     call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gemini-2.0-flash", 
-    payoff_x=payoff_dilemma_x, intervention_mode="none" # ★
+    payoff_x=payoff_winwin_x, intervention_mode="none" # ★
 )
 
 logs = out_none["per_round"]
@@ -584,7 +585,7 @@ print(f"結果を {csv_filename} に保存しました。")
 print("実験 2/3 (ターゲット介入) を実行中...")
 out_target = run_sweep_llm(
     call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gemini-2.0-flash", 
-    payoff_x=payoff_dilemma_x, intervention_mode="target" # ★
+    payoff_x=payoff_winwin_x, intervention_mode="target" # ★
 )
 
 logs = out_target["per_round"]
@@ -598,7 +599,7 @@ print(f"結果を {csv_filename} に保存しました。")
 print("実験 3/3 (非ターゲット介入) を実行中...")
 out_non_target = run_sweep_llm(
     call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gemini-2.0-flash", 
-    payoff_x=payoff_dilemma_x, intervention_mode="non_target" # ★
+    payoff_x=payoff_winwin_x, intervention_mode="non_target" # ★
 )
 
 logs = out_non_target["per_round"]

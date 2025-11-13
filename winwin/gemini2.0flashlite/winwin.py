@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 import numpy as np
 
-payoff_dilemma_x = {'T': 5, 'R': 3, 'P': 1, 'S': 0}
-payoff_dilemma_y = {'T': 5, 'R': 3, 'P': 1, 'S': 0}
+payoff_winwin_x = {'T': 2, 'R': 4, 'P': 0, 'S': 3}
+payoff_winwin_y = {'T': 2, 'R': 4, 'P': 0, 'S': 3}
 
 
 
