@@ -190,14 +190,12 @@ def play_round_llm(
 
 
     # L (Lipschitz定数) の計算
-    #L_safe = max(abs(R - S), abs(T - P)) # Q値のグローバルなLipschitz定数 (安全側)
+    L_safe = max(R,S,T,P) - min(R,S,T,P) # Q値のグローバルなLipschitz定数 (安全側)
     # L_tight = abs(Q_true[1] - Q_true[0]) # ローカルQ値の差 (タイトだが、安全性が保証されない可能性がある)
 
     # ★ 修正: L_eff の計算は、常に最も安全なグローバル定数L_safeを使用する
     # use_range_L が True/False にかかわらず、カバレッジを保証するためL_safeを使う
-    
-    #L_eff = L_safe 
-    L_eff = max(R, S, T, P) - min(R, S, T, P)
+    L_eff = L_safe 
     # L_eff = L_tight if use_range_L else L_safe # (この行を削除またはコメントアウト)
     C  = 0.5 * beta_f
 
@@ -260,46 +258,15 @@ def play_round_llm(
 
 def create_intervention_prompts():
     """完全に独立した介入プロンプトを生成"""
-    
+
     # 予測修正プロンプト（方策への影響を最小化）
-    prompt_pred_fix = """[PREDICTION MODULE ALERT]
-ERROR DETECTED: Opponent model (phi_hat) calibration issue.
+    prompt_pred_fix = "SYSTEM ALERT: Your opponent prediction (phi_hat) was inaccurate. Re-evaluate your opponent's strategy based on the history."
+    prompt_policy_fix = "SYSTEM ALERT: Your policy (pi) was suboptimal. Your prediction may be correct, but your action choice was not rational for maximizing payoffs. Re-evaluate your action."
 
-TASK: Update ONLY your opponent prediction phi_hat.
-- Analyze the opponent_history carefully
-- Calculate empirical frequencies: count(action=0) and count(action=1)
-- Update phi_hat to match observed frequencies
-- Output format: phi_hat = [prob_Cooperate, prob_Defect]
-
-CRITICAL CONSTRAINTS:
-- Do NOT modify your policy (pi)
-- Do NOT reconsider your action selection strategy
-- Do NOT think about payoff maximization in this step
-- ONLY focus on accurately predicting opponent's next action
-
-After updating phi_hat, apply your existing decision rule to determine pi."""
-
-    # 方策修正プロンプト（予測への影響を最小化）
-    prompt_policy_fix = """[POLICY MODULE ALERT]
-ERROR DETECTED: Action selection (pi) optimization issue.
-
-TASK: Optimize ONLY your action policy pi.
-- Your opponent prediction phi_hat is FIXED and assumed CORRECT
-- Review YOUR payoff matrix carefully
-- For each of your actions (0:Cooperate, 1:Defect), calculate:
-  Expected_Payoff(action) = phi_hat[0] * Payoff[action, 0] + phi_hat[1] * Payoff[action, 1]
-- Choose action that MAXIMIZES your expected payoff
-- Output format: pi = [prob_Cooperate, prob_Defect]
-
-CRITICAL CONSTRAINTS:
-- Do NOT modify phi_hat
-- Do NOT reconsider opponent's strategy
-- Do NOT update your belief about opponent
-- ONLY focus on selecting optimal action given current phi_hat
-
-Treat phi_hat as ground truth for this decision."""
 
     return prompt_pred_fix, prompt_policy_fix
+
+
 
 #ctxが環境の情報で、その情報からLLMが意思決定する
 def call_llm_fn(ctx):
@@ -571,7 +538,7 @@ def make_pd_env(seed, tremble):
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 print("実験 1/3 (ベースライン) を実行中...")
 out_none = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gpt-4o", 
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=5, model="gpt-4o", 
     payoff_x=payoff_winwin_x, intervention_mode="none" # ★
 )
 
@@ -585,7 +552,7 @@ print(f"結果を {csv_filename} に保存しました。")
 
 print("実験 2/3 (ターゲット介入) を実行中...")
 out_target = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gpt-4o", 
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=5, model="gpt-4o", 
     payoff_x=payoff_winwin_x, intervention_mode="target" # ★
 )
 
@@ -599,7 +566,7 @@ print(f"結果を {csv_filename} に保存しました。")
 
 print("実験 3/3 (非ターゲット介入) を実行中...")
 out_non_target = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gpt-4o", 
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=5, model="gpt-4o", 
     payoff_x=payoff_winwin_x, intervention_mode="non_target" # ★
 )
 
@@ -659,7 +626,7 @@ def analyze_intervention_effects(df_none, df_target, df_non_target):
     print(f"    Non-target: {df_non_target['policy_error'].mean():.4f}")
 
 # 実験後に検証
-#analyze_intervention_effects(pd.DataFrame(out_none), pd.DataFrame(out_target), pd.DataFrame(out_non_target))
+analyze_intervention_effects(pd.DataFrame(out_none), pd.DataFrame(out_target), pd.DataFrame(out_non_target))
 
 
 """
@@ -751,4 +718,3 @@ def plot_results_from_df(df, model="gpt-4o", p_y1_mean=0.5):
 plot_results_from_df(df_results, model="gpt-4o", p_y1_mean=0.5) # env.p_y1_mean を渡す
 print(f"グラフを 'regret_plot.png' と 'error_components_plot.png' として保存しました。")
 """
-

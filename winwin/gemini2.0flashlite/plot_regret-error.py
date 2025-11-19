@@ -97,7 +97,8 @@ def main_plotter():
     csv_files_to_plot = {
         "Baseline": "results_none.csv",
         "Targeted": "results_target.csv",
-        "NonTargeted": "results_non_target.csv"
+        "NonTargeted": "results_non_target.csv",
+        "BothTargeted": "results_both_target.csv"
     }
 
     print("--- グラフ生成スクリプト (from CSV) を開始 ---")

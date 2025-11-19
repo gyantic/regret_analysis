@@ -408,6 +408,18 @@ def call_llm_fn(ctx):
             payload = json.loads(m.group(0))
         else:
             raise ValueError(f"LLM response does not contain valid JSON: {text}")
+        
+    
+    # もしトップレベルが配列だったら、先頭要素を使う
+    if isinstance(payload, list):
+        if len(payload) == 0:
+            raise ValueError(f"LLM returned empty list: {text}")
+        payload = payload[0]
+
+    if not isinstance(payload, dict):
+        raise ValueError(f"LLM response is not a JSON object: {text}")
+    
+    
     phi_hat_raw = payload.get("phi_hat")
     pi_raw = payload.get("pi")
     reasoning = payload.get("reasoning", "")
@@ -471,6 +483,8 @@ def run_sweep_llm(
                 
                 # --- ★★★ 介入ロジック (ここから) ★★★ ---
                 intervention_prompt = None
+                if intervention_mode == "always_both":
+                    intervention_prompt = prompt_pred_fix + "\n\n" + prompt_policy_fix
                 
                 # ラウンドt=1では介入不可 (t > 1 かつ 介入モードが 'none' でない)
                 if t > 1 and intervention_mode != "none":
@@ -501,6 +515,9 @@ def run_sweep_llm(
                                 intervention_prompt = prompt_policy_fix # 逆！
                             else:
                                 intervention_prompt = prompt_pred_fix # 逆！
+                        
+                        
+                        
                 
                 # --- ★★★ 介入ロジック (ここまで) ★★★ ---
 
@@ -607,6 +624,21 @@ df_results = pd.DataFrame(logs)
 
 # 3. CSVファイルとして結果を保存
 csv_filename = "results_non_target.csv"
+df_results.to_csv(csv_filename, index=False)
+print(f"結果を {csv_filename} に保存しました。")
+
+
+print("追加実験(両方常時介入) を実行中...")
+out_both_target = run_sweep_llm(
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=2, model="gemini-2.0-flash", 
+    payoff_x=payoff_winwin_x, intervention_mode="always_both" # ★
+)
+
+logs = out_both_target["per_round"]
+df_results = pd.DataFrame(logs)
+
+# 3. CSVファイルとして結果を保存
+csv_filename = "results_both_target.csv"
 df_results.to_csv(csv_filename, index=False)
 print(f"結果を {csv_filename} に保存しました。")
 

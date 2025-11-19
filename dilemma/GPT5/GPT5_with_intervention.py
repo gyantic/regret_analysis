@@ -270,10 +270,12 @@ TASK: Update ONLY your opponent prediction phi_hat.
 - Output format: phi_hat = [prob_Cooperate, prob_Defect]
 
 CRITICAL CONSTRAINTS:
-- Do NOT modify your policy (pi)
-- Do NOT reconsider your action selection strategy
-- Do NOT think about payoff maximization in this step
-- ONLY focus on accurately predicting opponent's next action
+- Do NOT change your decision rule for choosing actions.
+- Do NOT introduce any new criteria for action selection.
+- Do NOT think about payoff maximization in this step.
+- Your action probabilities pi may change ONLY as a consequence
+  of plugging the updated phi_hat into the SAME decision rule as before.
+- ONLY focus on accurately predicting opponent's next action.
 
 After updating phi_hat, apply your existing decision rule to determine pi."""
 
