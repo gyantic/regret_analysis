@@ -190,7 +190,7 @@ def play_round_llm(
 
 
     # L (Lipschitz定数) の計算
-    L_safe = max(abs(R - S), abs(T - P)) # Q値のグローバルなLipschitz定数 (安全側)
+    L_safe = max(R,S,T,P) - min(R,S,T,P) # Q値のグローバルなLipschitz定数 (安全側)
     # L_tight = abs(Q_true[1] - Q_true[0]) # ローカルQ値の差 (タイトだが、安全性が保証されない可能性がある)
 
     # ★ 修正: L_eff の計算は、常に最も安全なグローバル定数L_safeを使用する
@@ -555,7 +555,7 @@ print(f"結果を {csv_filename} に保存しました。")
 
 print("実験 2/3 (ターゲット介入) を実行中...")
 out_target = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=8,temperatures=1.0,trials=2, model="gpt-5-2025-08-07", 
+    call_llm_fn, make_env=make_pd_env, T=10,temperatures=1.0,trials=5, model="gpt-5-2025-08-07", 
     payoff_x=payoff_winwin_x, intervention_mode="target" # ★
 )
 
@@ -569,7 +569,7 @@ print(f"結果を {csv_filename} に保存しました。")
 
 print("実験 3/3 (非ターゲット介入) を実行中...")
 out_non_target = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=8,temperatures=1.0, trials=2, model="gpt-5-2025-08-07", 
+    call_llm_fn, make_env=make_pd_env, T=10,temperatures=1.0, trials=5, model="gpt-5-2025-08-07", 
     payoff_x=payoff_winwin_x, intervention_mode="non_target" # ★
 )
 
