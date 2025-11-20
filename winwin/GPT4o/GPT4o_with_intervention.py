@@ -286,6 +286,7 @@ def call_llm_fn(ctx):
     
     # ★ 介入プロンプトを取得
     intervention_prompt = ctx.get("intervention_prompt") 
+    llm_seed = ctx.get("llm_seed")
 
     system_msg = (
         "You are an assistant that returns ONLY valid JSON. "
@@ -355,6 +356,7 @@ def call_llm_fn(ctx):
     resp = client.chat.completions.create(
         model=ctx["model"],
         temperature=ctx["temperature"],
+        seed=llm_seed,
         messages=[
             {"role": "system", "content": system_msg},
             {"role": "user",   "content": user_message_content}
@@ -429,6 +431,7 @@ def run_sweep_llm(
         for r in range(trials):
             env = make_env(tremble=tremble, seed=seed + 1000*ti + r)
             rng = np.random.default_rng(seed + 2000*ti + r)
+            llm_seed = seed + 3000*ti + r 
             
             opponent_history = []
             
@@ -480,7 +483,8 @@ def run_sweep_llm(
                     L=L, C=C, use_range_L=use_range_L,
                     extra_ctx={
                         "opponent_history": ctx_opponent_history,
-                        "intervention_prompt": intervention_prompt # ★ 追加
+                        "intervention_prompt": intervention_prompt, # ★ 追加
+                        "llm_seed": llm_seed, 
                     },
                     payoff_x=payoff_x
                 )
@@ -538,7 +542,7 @@ def make_pd_env(seed, tremble):
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 print("実験 1/3 (ベースライン) を実行中...")
 out_none = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=5, model="gpt-4o", 
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=15, model="gpt-4o", 
     payoff_x=payoff_winwin_x, intervention_mode="none" # ★
 )
 
@@ -552,7 +556,7 @@ print(f"結果を {csv_filename} に保存しました。")
 
 print("実験 2/3 (ターゲット介入) を実行中...")
 out_target = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=5, model="gpt-4o", 
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=15, model="gpt-4o", 
     payoff_x=payoff_winwin_x, intervention_mode="target" # ★
 )
 
@@ -566,7 +570,7 @@ print(f"結果を {csv_filename} に保存しました。")
 
 print("実験 3/3 (非ターゲット介入) を実行中...")
 out_non_target = run_sweep_llm(
-    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=5, model="gpt-4o", 
+    call_llm_fn, make_env=make_pd_env, T=10, temperatures=(0.8,), trials=15, model="gpt-4o", 
     payoff_x=payoff_winwin_x, intervention_mode="non_target" # ★
 )
 
@@ -579,54 +583,6 @@ df_results.to_csv(csv_filename, index=False)
 print(f"結果を {csv_filename} に保存しました。")
 
 
-def analyze_intervention_effects(df_none, df_target, df_non_target):
-    """
-    3つの介入モードを比較
-    """
-    print("=== 介入効果の比較 ===\n")
-    
-    # 累積リグレットの最終値
-    none_final = df_none.groupby('trial')['cum_regret'].last().mean()
-    target_final = df_target.groupby('trial')['cum_regret'].last().mean()
-    non_target_final = df_non_target.groupby('trial')['cum_regret'].last().mean()
-    
-    print("累積リグレット（最終）:")
-    print(f"  None (ベースライン):     {none_final:.4f}")
-    print(f"  Target (正しい介入):     {target_final:.4f}")
-    print(f"  Non-target (逆介入):     {non_target_final:.4f}")
-    print(f"  改善率 (Target vs None): {(none_final - target_final)/none_final*100:.2f}%")
-    print(f"  悪化率 (Non-target vs None): {(non_target_final - none_final)/none_final*100:.2f}%")
-    
-    # 平均リグレット
-    print("\n平均リグレット（全ラウンド）:")
-    print(f"  None:       {df_none['regret_t'].mean():.4f}")
-    print(f"  Target:     {df_target['regret_t'].mean():.4f}")
-    print(f"  Non-target: {df_non_target['regret_t'].mean():.4f}")
-    
-    # 介入回数
-    print("\n介入回数:")
-    print(f"  Target:     {df_target['intervention_applied'].sum()} 回")
-    print(f"  Non-target: {df_non_target['intervention_applied'].sum()} 回")
-    
-    # エラー成分の平均
-    print("\n平均エラー成分:")
-    print(f"  ECE (予測誤差):")
-    print(f"    None:       {df_none['ece'].mean():.4f}")
-    print(f"    Target:     {df_target['ece'].mean():.4f}")
-    print(f"    Non-target: {df_non_target['ece'].mean():.4f}")
-    
-    print(f"  Mismatch (方策ミスマッチ):")
-    print(f"    None:       {df_none['mismatch'].mean():.4f}")
-    print(f"    Target:     {df_target['mismatch'].mean():.4f}")
-    print(f"    Non-target: {df_non_target['mismatch'].mean():.4f}")
-    
-    print(f"  Policy Error (方策誤差):")
-    print(f"    None:       {df_none['policy_error'].mean():.4f}")
-    print(f"    Target:     {df_target['policy_error'].mean():.4f}")
-    print(f"    Non-target: {df_non_target['policy_error'].mean():.4f}")
-
-# 実験後に検証
-analyze_intervention_effects(pd.DataFrame(out_none), pd.DataFrame(out_target), pd.DataFrame(out_non_target))
 
 
 """
