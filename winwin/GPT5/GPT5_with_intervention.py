@@ -1,5 +1,5 @@
 from openai import OpenAI
-from dilemma import *
+from winwin import *
 import numpy as np
 import pandas as pd, os, json
 import matplotlib.pyplot as plt
@@ -258,44 +258,11 @@ def play_round_llm(
 
 def create_intervention_prompts():
     """完全に独立した介入プロンプトを生成"""
-    
+
     # 予測修正プロンプト（方策への影響を最小化）
-    prompt_pred_fix = """[PREDICTION MODULE ALERT]
-ERROR DETECTED: Opponent model (phi_hat) calibration issue.
+    prompt_pred_fix = "SYSTEM ALERT: Your opponent prediction (phi_hat) was inaccurate. Re-evaluate your opponent's strategy based on the history."
+    prompt_policy_fix = "SYSTEM ALERT: Your policy (pi) was suboptimal. Your prediction may be correct, but your action choice was not rational for maximizing payoffs. Re-evaluate your action."
 
-TASK: Update ONLY your opponent prediction phi_hat.
-- Analyze the opponent_history carefully
-- Calculate empirical frequencies: count(action=0) and count(action=1)
-- Update phi_hat to match observed frequencies
-- Output format: phi_hat = [prob_Cooperate, prob_Defect]
-
-CRITICAL CONSTRAINTS:
-- Do NOT modify your policy (pi)
-- Do NOT reconsider your action selection strategy
-- Do NOT think about payoff maximization in this step
-- ONLY focus on accurately predicting opponent's next action
-
-After updating phi_hat, apply your existing decision rule to determine pi."""
-
-    # 方策修正プロンプト（予測への影響を最小化）
-    prompt_policy_fix = """[POLICY MODULE ALERT]
-ERROR DETECTED: Action selection (pi) optimization issue.
-
-TASK: Optimize ONLY your action policy pi.
-- Your opponent prediction phi_hat is FIXED and assumed CORRECT
-- Review YOUR payoff matrix carefully
-- For each of your actions (0:Cooperate, 1:Defect), calculate:
-  Expected_Payoff(action) = phi_hat[0] * Payoff[action, 0] + phi_hat[1] * Payoff[action, 1]
-- Choose action that MAXIMIZES your expected payoff
-- Output format: pi = [prob_Cooperate, prob_Defect]
-
-CRITICAL CONSTRAINTS:
-- Do NOT modify phi_hat
-- Do NOT reconsider opponent's strategy
-- Do NOT update your belief about opponent
-- ONLY focus on selecting optimal action given current phi_hat
-
-Treat phi_hat as ground truth for this decision."""
 
     return prompt_pred_fix, prompt_policy_fix
 
@@ -317,6 +284,7 @@ def call_llm_fn(ctx):
     
     # ★ 介入プロンプトを取得
     intervention_prompt = ctx.get("intervention_prompt") 
+    llm_seed = ctx.get("llm_seed")
 
     system_msg = (
         "You are an assistant that returns ONLY valid JSON. "
@@ -386,6 +354,7 @@ def call_llm_fn(ctx):
     resp = client.chat.completions.create(
         model=ctx["model"],
         temperature=ctx["temperature"],
+        seed=llm_seed,
         messages=[
             {"role": "system", "content": system_msg},
             {"role": "user",   "content": user_message_content}
@@ -461,6 +430,7 @@ def run_sweep_llm(
         for r in range(trials):
             env = make_env(tremble=tremble, seed=seed + 1000*ti + r)
             rng = np.random.default_rng(seed + 2000*ti + r)
+            llm_seed = seed + 3000*ti + r 
             
             opponent_history = []
             
@@ -512,7 +482,8 @@ def run_sweep_llm(
                     L=L, C=C, use_range_L=use_range_L,
                     extra_ctx={
                         "opponent_history": ctx_opponent_history,
-                        "intervention_prompt": intervention_prompt # ★ 追加
+                        "intervention_prompt": intervention_prompt, # ★ 追加
+                        "llm_seed": llm_seed,
                     },
                     payoff_x=payoff_x
                 )
